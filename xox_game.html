@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XOX Game</title>
+    <title>XOX Game (XOX Scoring)</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Inter font -->
@@ -25,9 +25,9 @@
         .text-x { color: #3b82f6; } /* blue-500 */
         .text-o { color: #ef4444; } /* red-500 */
         
-        /* Highlight for winning cells */
+        /* Highlight for scoring cells (XOX) */
         .highlight {
-            background-color: #86efac; /* green-300 */
+            background-color: #fde047; /* yellow-300 */
             transform: scale(1.05);
             transition: all 0.3s ease-in-out;
         }
@@ -138,7 +138,7 @@
     <div id="game-screen" class="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-md mx-auto hidden">
         
         <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-4">
-            XOX Game
+            XOX Scoring Game
         </h1>
 
         <!-- Tournament Info -->
@@ -154,10 +154,10 @@
         <!-- Scoreboard and Turn Indicator -->
         <div class="flex justify-between items-center mb-4">
             <div id="playerX-score" class="text-lg font-semibold text-blue-600 p-3 rounded-lg bg-blue-50 border border-blue-200 transition-all duration-300">
-                X Lines: 0
+                X Points: 0
             </div>
             <div id="playerO-score" class="text-lg font-semibold text-red-600 p-3 rounded-lg bg-red-50 border border-red-200 transition-all duration-300">
-                O Lines: 0
+                O Points: 0
             </div>
         </div>
         <div id="turn-indicator" class="text-center text-2xl font-bold text-gray-700 mb-6">
@@ -219,7 +219,7 @@
             const quitToMenuBtn = document.getElementById('quit-to-menu-btn');
 
             const congratsMessage = document.getElementById('congrats-message');
-            const winnerText = document.getElementById('winner-text');
+            const winnerText = document.getElementById('winner-text'); 
             const loserText = document.getElementById('loser-text');
             const dareContainer = document.getElementById('dare-container');
             const showDareBtn = document.getElementById('show-dare-btn');
@@ -232,13 +232,13 @@
             let gridSize = 3;
             let gameMode = 'single'; // 'single' or 'tournament'
             let currentPlayer = 'X';
-            let roundLineScores = { X: 0, O: 0 }; // Line Counts for the current round
-            let tournamentScores = { X: 0, O: 0 }; // Round Wins for the tournament
+            let scores = { X: 0, O: 0 }; // Tracks points in the current round
+            let tournamentScores = { X: 0, O: 0 }; // Tracks round wins for the tournament
             let currentRound = 1;
             let isGameOver = false;
             let cellsFilled = 0;
-            const winCondition = () => gridSize; // 3-in-a-row for 3x3, 4-in-a-row for 4x4
-            let allWinningCells = []; // Stores coordinates of all cells that formed a winning line for highlighting
+            const winCondition = () => gridSize;
+            let winningCells = null; 
 
             // --- Game Flow ---
 
@@ -282,15 +282,16 @@
                 cellsFilled = 0;
                 currentPlayer = 'X';
                 messageArea.textContent = '';
-                roundLineScores = { X: 0, O: 0 }; // Reset line counts for the new round
-                allWinningCells = [];
+                scores = { X: 0, O: 0 }; // Reset points for new round
                 
                 // Clear highlights from scoreboards
                 pXScoreElement.classList.remove('scale-110', 'bg-blue-100');
                 pOScoreElement.classList.remove('scale-110', 'bg-red-100');
+                document.querySelectorAll('.highlight').forEach(cell => cell.classList.remove('highlight'));
+
 
                 updateTurnIndicator();
-                updateGameScoreDisplay(); // Show 0-0 lines
+                updateGameScoreDisplay(); 
 
                 // Create cells
                 const cellSizeClass = gridSize === 3 ? 'text-8xl' : 'text-6xl';
@@ -305,17 +306,228 @@
                 }
             }
             
+            // --- UI Updates ---
+            function updateGameScoreDisplay() {
+                pXScoreElement.textContent = `X Points: ${scores.X}`;
+                pOScoreElement.textContent = `O Points: ${scores.O}`;
+            }
+
+            function updateTournamentScoreDisplay() {
+                tournamentScoreDisplay.textContent = `Tournament: X (${tournamentScores.X}) - O (${tournamentScores.O})`;
+            }
+
+            function updateRoundDisplay() {
+                currentRoundDisplay.textContent = `Round ${currentRound} of 3`;
+            }
+
+            function updateTurnIndicator() {
+                if (currentPlayer === 'X') {
+                    turnIndicator.textContent = "Player X's Turn";
+                    turnIndicator.style.color = '#2563eb'; // blue-600
+                    pXScoreElement.classList.add('scale-110', 'bg-blue-100');
+                    pOScoreElement.classList.remove('scale-110', 'bg-red-100');
+                } else {
+                    turnIndicator.textContent = "Player O's Turn";
+                    turnIndicator.style.color = '#dc2626'; // red-600
+                    pOScoreElement.classList.add('scale-110', 'bg-red-100');
+                    pXScoreElement.classList.remove('scale-110', 'bg-blue-100');
+                }
+            }
+
+            // --- Game Logic ---
+            
+            // Function to switch the current player
+            function switchTurn() {
+                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                updateTurnIndicator();
+            }
+
+            /**
+             * Checks for the EXACT pattern X O X, awarding the point to the player whose move (r, c) completed it.
+             * - If currentPiece is 'X', it scores if it completes [X O X] as the first or third X.
+             * - If currentPiece is 'O', it scores if it completes [X O X] as the middle O.
+             */
+            function checkScore(r, c) {
+                let points = 0;
+                const currentPiece = board[r][c];
+
+                // Check only 4 unique directions (Horizontal, Vertical, 2 Diagonals)
+                const uniqueDirections = [
+                    { dr: 0, dc: 1 },  
+                    { dr: 1, dc: 0 },  
+                    { dr: 1, dc: 1 },  
+                    { dr: 1, dc: -1 }  
+                ];
+
+                const isValid = (pr, pc) => pr >= 0 && pr < gridSize && pc >= 0 && pc < gridSize;
+                
+                for (const { dr, dc } of uniqueDirections) {
+                    
+                    // 1. Check segment starting one step BEFORE the placed piece (r-dr, c-dc)
+                    // Pattern: [P1] [P2] [P3] where P3 is the placed piece (r, c)
+                    // Checks: [X] [O] [Placed X]
+                    const r1 = r - 2 * dr; 
+                    const c1 = c - 2 * dc;
+                    const r2 = r - dr; 
+                    const c2 = c - dc;
+                    
+                    if (isValid(r1, c1) && isValid(r2, c2)) {
+                        if (board[r1][c1] === 'X' && board[r2][c2] === 'O' && currentPiece === 'X') {
+                            points++;
+                            highlightCell(r, c);
+                            highlightCell(r2, c2);
+                            highlightCell(r1, c1);
+                        }
+                    }
+                    
+                    // 2. Check segment centered on the placed piece (r, c)
+                    // Pattern: [P1] [P2] [P3] where P2 is the placed piece (r, c)
+                    // Checks: [X] [Placed O] [X]
+                    const r_back = r - dr; 
+                    const c_back = c - dc;
+                    const r_fwd = r + dr; 
+                    const c_fwd = c + dc; 
+
+                    if (isValid(r_back, c_back) && isValid(r_fwd, c_fwd)) {
+                        if (board[r_back][c_back] === 'X' && currentPiece === 'O' && board[r_fwd][c_fwd] === 'X') {
+                            points++;
+                            highlightCell(r, c);
+                            highlightCell(r_back, c_back);
+                            highlightCell(r_fwd, c_fwd);
+                        }
+                    }
+
+                    // 3. Check segment starting at the placed piece (r, c)
+                    // Pattern: [P1] [P2] [P3] where P1 is the placed piece (r, c)
+                    // Checks: [Placed X] [O] [X]
+                    const r2_fwd = r + dr;
+                    const c2_fwd = c + dc;
+                    const r3_fwd = r + 2 * dr;
+                    const c3_fwd = c + 2 * dc;
+
+                    if (isValid(r2_fwd, c2_fwd) && isValid(r3_fwd, c3_fwd)) {
+                        if (currentPiece === 'X' && board[r2_fwd][c2_fwd] === 'O' && board[r3_fwd][c3_fwd] === 'X') {
+                            points++;
+                            highlightCell(r, c);
+                            highlightCell(r2_fwd, c2_fwd);
+                            highlightCell(r3_fwd, c3_fwd);
+                        }
+                    }
+                }
+                return points;
+            }
+
+            function highlightCell(r, c) {
+                const cell = document.querySelector(`[data-r='${r}'][data-c='${c}']`);
+                if (cell) {
+                    cell.classList.add('highlight');
+                }
+            }
+
+
+            // Called when the game ends (board is full)
+            function handleGameEnd() {
+                isGameOver = true;
+                
+                // Determine winner of the round based on points
+                let roundWinner;
+                if (scores.X > scores.O) {
+                    roundWinner = 'X';
+                } else if (scores.O > scores.X) {
+                    roundWinner = 'O';
+                } else {
+                    roundWinner = 'draw';
+                }
+
+                if (roundWinner === 'draw') {
+                    messageArea.textContent = `It's a Draw! (X: ${scores.X}, O: ${scores.O})`;
+                    messageArea.style.color = '#52525b'; 
+                } else {
+                    messageArea.textContent = `Player ${roundWinner} wins the round!`;
+                    messageArea.style.color = (roundWinner === 'X' ? '#16a34a' : '#dc2626');
+                }
+
+                if (gameMode === 'tournament') {
+                    if (roundWinner !== 'draw') {
+                        tournamentScores[roundWinner]++; // Increment round win count
+                    }
+                    updateTournamentScoreDisplay();
+                    
+                    // Check for tournament win or advance
+                    if (tournamentScores.X === 2 || tournamentScores.O === 2) {
+                        setTimeout(() => handleTournamentEnd(tournamentScores.X === 2 ? 'X' : 'O'), 2000);
+                    } else if (currentRound < 3) {
+                        currentRound++;
+                        setTimeout(() => {
+                            updateRoundDisplay();
+                            startNewRound();
+                        }, 2000);
+                    } else {
+                         // Final round played, determine winner if tie on 1-1
+                         setTimeout(() => handleTournamentEnd(roundWinner), 2000);
+                    }
+                } else {
+                    // Single game win
+                    setTimeout(() => {
+                        if (roundWinner === 'draw') {
+                            showFinalDrawModal();
+                        } else {
+                            showDareModal(roundWinner, false);
+                        }
+                    }, 2000);
+                }
+            }
+
+            function handleTournamentEnd(finalWinner) {
+                // Determine tournament winner based on best of 3 or final round winner
+                if (finalWinner === 'draw') {
+                    congratsMessage.textContent = "Tournament Draw!";
+                    winnerText.textContent = "The series ended in a tie!";
+                    dareContainer.style.display = 'none'; // No dares on a draw
+                } else {
+                    showDareModal(finalWinner, true);
+                }
+            }
+
+            function showFinalDrawModal() {
+                congratsMessage.textContent = "Game Over: Draw!";
+                winnerText.textContent = `The board is full. Final Score: X (${scores.X}) - O (${scores.O}).`;
+                dareContainer.style.display = 'none';
+                gameOverModal.style.display = 'flex';
+            }
+            
+            function showDareModal(winner, isTournamentWin) {
+                const loser = winner === 'X' ? 'O' : 'X';
+                
+                if (isTournamentWin) {
+                    congratsMessage.textContent = "Tournament Champion!";
+                    winnerText.textContent = `Player ${winner} won the series with ${tournamentScores[winner]} rounds!`;
+                } else {
+                    congratsMessage.textContent = "Congratulations!";
+                    winnerText.textContent = `Player ${winner} won the round with ${scores[winner]} points!`;
+                }
+                
+                loserText.textContent = `Player ${loser}, you have a dare!`;
+                
+                // Reset dare UI
+                dareContainer.style.display = 'block';
+                showDareBtn.style.display = 'block';
+                dareTextContainer.style.display = 'none';
+
+                gameOverModal.style.display = 'flex';
+            }
+
+            function showDare() {
+                const randomDare = dares[Math.floor(Math.random() * dares.length)];
+                dareText.textContent = randomDare;
+                showDareBtn.style.display = 'none';
+                dareTextContainer.style.display = 'block';
+            }
+            
             // --- Event Handlers ---
             startGameBtn.addEventListener('click', startGame);
             boardElement.addEventListener('click', handleCellClick);
             restartRoundBtn.addEventListener('click', () => {
-                if (gameMode === 'single') {
-                    // In single mode, 'Restart Round' means restart the whole game
-                    roundLineScores = { X: 0, O: 0 }; 
-                }
-                // Clear any existing highlights from cells before starting a new round
-                document.querySelectorAll('.highlight').forEach(cell => cell.classList.remove('highlight'));
-
                 startNewRound();
             });
             quitToMenuBtn.addEventListener('click', showSetupScreen);
@@ -341,238 +553,30 @@
                 e.target.classList.remove('hover:bg-gray-50');
                 e.target.style.cursor = 'default';
                 cellsFilled++;
-
-                // Calculate and update scores after every move
-                calculateTotalLines();
-                updateGameScoreDisplay(); 
-
-                // Check for game end (only on board full)
-                if (cellsFilled === gridSize * gridSize) {
-                    handleGameEnd(); // Logic determines winner by final score
+                
+                // 1. Check for score
+                const pointsScored = checkScore(r, c);
+                
+                if (pointsScored > 0) {
+                    scores[currentPlayer] += pointsScored;
+                    updateGameScoreDisplay();
+                    
+                    const scoreMessage = `Player ${currentPlayer} scored ${pointsScored} point(s)!`;
+                    messageArea.textContent = scoreMessage;
+                    messageArea.style.color = (currentPlayer === 'X' ? '#16a34a' : '#dc2626');
                 } else {
-                    // Continue game, switch turn
+                    messageArea.textContent = '';
+                }
+
+                // 2. Check for game over
+                if (cellsFilled === gridSize * gridSize) {
+                    handleGameEnd(); 
+                } else {
+                    // 3. Continue game, switch turn
                     switchTurn();
                 }
             }
-            
-            // --- Game Logic ---
 
-            // Calculates all unique lines (of winLen length) across the entire board
-            function calculateTotalLines() {
-                const playerLineCounts = { X: 0, O: 0 };
-                allWinningCells = []; // Reset highlights tracking for every move
-                const winLen = winCondition();
-
-                const directions = [
-                    { dr: 0, dc: 1 },  // Horizontal
-                    { dr: 1, dc: 0 },  // Vertical
-                    { dr: 1, dc: 1 },  // Diagonal \
-                    { dr: 1, dc: -1 }  // Diagonal /
-                ];
-
-                for (let r = 0; r < gridSize; r++) {
-                    for (let c = 0; c < gridSize; c++) {
-                        const player = board[r][c];
-                        if (player === '') continue;
-
-                        for (const { dr, dc } of directions) {
-                            
-                            // Check if this cell (r, c) is the true start of a line
-                            // The cell immediately preceding it in this direction must NOT be the same player's symbol
-                            const prevR = r - dr;
-                            const prevC = c - dc;
-                            if (prevR >= 0 && prevR < gridSize && prevC >= 0 && prevC < gridSize && board[prevR][prevC] === player) {
-                                continue; 
-                            }
-
-                            let lineLength = 0;
-                            let currentLine = [];
-                            
-                            // Check for winLen consecutive symbols starting from (r, c)
-                            for (let i = 0; i < winLen; i++) {
-                                const cr = r + dr * i;
-                                const cc = c + dc * i;
-
-                                if (cr >= 0 && cr < gridSize && cc >= 0 && cc < gridSize && board[cr][cc] === player) {
-                                    lineLength++;
-                                    currentLine.push({r: cr, c: cc});
-                                } else {
-                                    break;
-                                }
-                            }
-                            
-                            // If we found a complete line of winLen, count it
-                            if (lineLength === winLen) {
-                                playerLineCounts[player]++;
-                                // Add cells to the global list to highlight at the end
-                                currentLine.forEach(cell => {
-                                    if (!allWinningCells.some(wc => wc.r === cell.r && wc.c === cell.c)) {
-                                        allWinningCells.push(cell);
-                                    }
-                                });
-                            }
-                        }
-                    }
-                }
-
-                // Update the state for the round
-                roundLineScores.X = playerLineCounts.X;
-                roundLineScores.O = playerLineCounts.O;
-            }
-
-            function switchTurn() {
-                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-                updateTurnIndicator();
-            }
-
-            // Called only when the board is full
-            function handleGameEnd() {
-                isGameOver = true;
-
-                // 1. Highlight all scored lines on the board
-                document.querySelectorAll('.highlight').forEach(cell => cell.classList.remove('highlight')); // Clear old highlights first
-                allWinningCells.forEach(({r, c}) => {
-                    const cell = document.querySelector(`[data-r='${r}'][data-c='${c}']`);
-                    if (cell) cell.classList.add('highlight');
-                });
-                
-                // 2. Determine the winner based on final line counts
-                let winner;
-                if (roundLineScores.X > roundLineScores.O) {
-                    winner = 'X';
-                } else if (roundLineScores.O > roundLineScores.X) {
-                    winner = 'O';
-                } else {
-                    winner = 'draw';
-                }
-
-                if (winner === 'draw') {
-                    messageArea.textContent = "Board Full: Tie Game!";
-                    messageArea.style.color = '#52525b'; 
-                    
-                    if (gameMode === 'tournament') {
-                         currentRound++;
-                         // Handle draw in tournament (no score change, but round advances)
-                         setTimeout(() => {
-                            if (currentRound > 3) {
-                                handleTournamentEnd(); // Check overall tournament scores
-                            } else {
-                                updateRoundDisplay();
-                                startNewRound();
-                            }
-                        }, 2000);
-                    } else {
-                        // Single game draw: show modal that the score was a draw
-                        showFinalDrawModal();
-                    }
-
-                } else {
-                    // A player won the round by line count
-                    messageArea.textContent = `Player ${winner} wins the round with ${roundLineScores[winner]} lines!`;
-                    messageArea.style.color = (winner === 'X' ? '#16a34a' : '#dc2626');
-                    
-                    if (gameMode === 'tournament') {
-                        tournamentScores[winner]++; // Increment round win count
-                        updateTournamentScoreDisplay();
-                        
-                        // Check for tournament win
-                        if (tournamentScores[winner] === 2) {
-                            setTimeout(() => showDareModal(winner, true), 2000);
-                        } else {
-                            // Start next round
-                            currentRound++;
-                             setTimeout(() => {
-                                updateRoundDisplay();
-                                startNewRound();
-                            }, 2000);
-                        }
-                    } else {
-                        // Single game win
-                        setTimeout(() => showDareModal(winner, false), 2000);
-                    }
-                }
-            }
-
-            function handleTournamentEnd() {
-                // Determine tournament winner after 3 rounds
-                let finalWinner;
-                if (tournamentScores.X > tournamentScores.O) finalWinner = 'X';
-                else if (tournamentScores.O > tournamentScores.X) finalWinner = 'O';
-                else finalWinner = 'draw'; 
-
-                if(finalWinner === 'draw') {
-                    congratsMessage.textContent = "Tournament Draw!";
-                    winnerText.textContent = "The series ended in a tie!";
-                    dareContainer.style.display = 'none'; // No dares on a draw
-                    gameOverModal.style.display = 'flex';
-                } else {
-                    showDareModal(finalWinner, true);
-                }
-            }
-
-            function showFinalDrawModal() {
-                congratsMessage.textContent = "Board Full: Tie Game!";
-                winnerText.textContent = `Final Score: X (${roundLineScores.X} lines) - O (${roundLineScores.O} lines)`;
-                dareContainer.style.display = 'none';
-                gameOverModal.style.display = 'flex';
-            }
-            
-            function showDareModal(winner, isTournamentWin) {
-                const loser = winner === 'X' ? 'O' : 'X';
-                
-                if (isTournamentWin) {
-                    congratsMessage.textContent = "Tournament Champion!";
-                    winnerText.textContent = `Player ${winner} won the series!`;
-                } else {
-                    congratsMessage.textContent = "Congratulations!";
-                    winnerText.textContent = `Player ${winner} won the round with ${roundLineScores[winner]} lines!`;
-                }
-                
-                loserText.textContent = `Player ${loser}, you have a dare!`;
-                
-                // Reset dare UI
-                dareContainer.style.display = 'block';
-                showDareBtn.style.display = 'block';
-                dareTextContainer.style.display = 'none';
-
-                gameOverModal.style.display = 'flex';
-            }
-
-            function showDare() {
-                const randomDare = dares[Math.floor(Math.random() * dares.length)];
-                dareText.textContent = randomDare;
-                showDareBtn.style.display = 'none';
-                dareTextContainer.style.display = 'block';
-            }
-
-            // --- UI Updates ---
-            function updateGameScoreDisplay() {
-                // Display current line counts for the round
-                pXScoreElement.textContent = `X Lines: ${roundLineScores.X}`;
-                pOScoreElement.textContent = `O Lines: ${roundLineScores.O}`;
-            }
-
-            function updateTournamentScoreDisplay() {
-                tournamentScoreDisplay.textContent = `Tournament: X (${tournamentScores.X}) - O (${tournamentScores.O})`;
-            }
-
-            function updateRoundDisplay() {
-                currentRoundDisplay.textContent = `Round ${currentRound} of 3`;
-            }
-
-            function updateTurnIndicator() {
-                if (currentPlayer === 'X') {
-                    turnIndicator.textContent = "Player X's Turn";
-                    turnIndicator.style.color = '#2563eb'; // blue-600
-                    pXScoreElement.classList.add('scale-110', 'bg-blue-100');
-                    pOScoreElement.classList.remove('scale-110', 'bg-red-100');
-                } else {
-                    turnIndicator.textContent = "Player O's Turn";
-                    turnIndicator.style.color = '#dc2626'; // red-600
-                    pOScoreElement.classList.add('scale-110', 'bg-red-100');
-                    pXScoreElement.classList.remove('scale-110', 'bg-blue-100');
-                }
-            }
 
             // --- Initial Game Start ---
             showSetupScreen();
