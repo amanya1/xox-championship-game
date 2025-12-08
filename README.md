@@ -1,4 +1,4 @@
-# xox-championship-game
+8# xox-championship-game
 XOX Line Champion: A Continuous-Score Tic-Tac-Toe Game
 
 This project is a single-file HTML/CSS/JavaScript implementation of a modern, score-based Tic-Tac-Toe (XOX) game. Unlike traditional XOX, this game focuses on continuous scoring over a full board, featuring a challenging Tournament Mode and fun Dares for the loser.
@@ -69,4 +69,3 @@ Clone this Repository or download the xox_game.html file.
 
 Open the file directly in any modern web browser (Chrome, Firefox, Edge, etc.).
 
-(For instructions on hosting this game live via GitHub Pages, see the section below.)
